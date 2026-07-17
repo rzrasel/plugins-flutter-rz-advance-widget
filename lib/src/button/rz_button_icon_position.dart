@@ -1,0 +1,1 @@
+enum RzButtonIconPosition { left, right }

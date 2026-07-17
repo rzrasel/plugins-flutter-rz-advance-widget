@@ -1,0 +1,1 @@
+enum RzMessageBoxType { success, error, warning, info, custom }
