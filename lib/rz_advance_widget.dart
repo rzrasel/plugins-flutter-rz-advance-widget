@@ -14,6 +14,7 @@ export 'src/checkbox/rz_remember_me.dart';
 
 // Combo Box
 export 'src/combo_box/rz_searchable_combo_box.dart';
+export 'src/combo_box/rz_searchable_combo_box_extended.dart';
 
 // Fieldset
 export 'src/fieldset/rz_fieldset.dart';

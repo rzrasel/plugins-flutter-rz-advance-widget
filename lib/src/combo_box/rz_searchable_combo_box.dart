@@ -18,7 +18,9 @@ class RzSearchableComboBox<T> extends StatefulWidget {
   itemBuilder;
   final String? Function(String?)? validator;
 
-  final int? initialIndex;
+  final int? initialIndex; // OLD: kept for backward compatibility
+  final int
+  selectedIndex; // NEW: default -1 = not selected, 0 = first, 1 = second etc
   final String hintText;
   final String labelText;
   final bool isRequired;
@@ -64,7 +66,8 @@ class RzSearchableComboBox<T> extends StatefulWidget {
     this.onSearch,
     this.itemBuilder,
     this.validator,
-    this.initialIndex,
+    this.initialIndex, // null = no selection by default
+    this.selectedIndex = -1, // -1 = no selection by default
     this.hintText = 'Search...',
     this.labelText = '',
     this.isRequired = false,
@@ -116,7 +119,7 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
   List<MapEntry<int, T>> filtered = [];
   List<T> _allItems = [];
   OverlayEntry? _overlay;
-  int? selectedIndex;
+  int? _selectedIndexInternal; // null = no selection
   int highlightedIndex = -1;
   bool isLoading = false;
   String? _validationError;
@@ -133,18 +136,72 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
       ? widget.listBorderColor
       : widget.borderColor;
 
+  int _resolveInitialIndex() {
+    // Priority: selectedIndex!= -1 -> use it, else initialIndex, else -1
+    if (widget.selectedIndex != -1) return widget.selectedIndex;
+    if (widget.initialIndex != null) return widget.initialIndex!;
+    return -1;
+  }
+
   @override
   void initState() {
     super.initState();
     _keyboardFocusNode.canRequestFocus = true;
     _allItems = List.from(widget.items);
     filtered = _allItems.asMap().entries.toList();
-    selectedIndex = widget.initialIndex;
-    if (selectedIndex != null &&
-        selectedIndex! >= 0 &&
-        selectedIndex! < _allItems.length) {
-      _controller.text = widget.labelBuilder(_allItems[selectedIndex!]);
+
+    final init = _resolveInitialIndex();
+    if (init >= 0 && init < _allItems.length) {
+      _selectedIndexInternal = init;
+      _controller.text = widget.labelBuilder(_allItems[init]);
+    } else {
+      _selectedIndexInternal = null; // -1 means not selected
     }
+
+    _focusNode.onKeyEvent = (node, event) {
+      if (_overlay == null) return KeyEventResult.ignored;
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          _moveHighlight(1);
+          return KeyEventResult.handled;
+        } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          _moveHighlight(-1);
+          return KeyEventResult.handled;
+        } else if (event.logicalKey == LogicalKeyboardKey.enter) {
+          if (highlightedIndex >= 0 && highlightedIndex < filtered.length) {
+            _select(filtered[highlightedIndex]);
+          } else if (filtered.length == 1) {
+            _select(filtered.first);
+          }
+          return KeyEventResult.handled;
+        } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+          _hideOverlay();
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+  }
+
+  void _moveHighlight(int delta) {
+    setState(() {
+      highlightedIndex = (highlightedIndex + delta).clamp(
+        0,
+        filtered.length - 1,
+      );
+    });
+    _scrollToHighlighted();
+    _overlay?.markNeedsBuild();
+  }
+
+  void _scrollToHighlighted() {
+    if (highlightedIndex < 0 || !_scrollController.hasClients) return;
+    final offset = highlightedIndex * widget.itemHeight;
+    _scrollController.animateTo(
+      offset.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
@@ -155,6 +212,22 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
       filtered = _allItems.asMap().entries.toList();
       _overlay?.markNeedsBuild();
     }
+    // if selectedIndex prop changed from parent
+    if (oldWidget.selectedIndex != widget.selectedIndex ||
+        oldWidget.initialIndex != widget.initialIndex) {
+      final init = _resolveInitialIndex();
+      if (init >= 0 && init < _allItems.length) {
+        setState(() {
+          _selectedIndexInternal = init;
+          _controller.text = widget.labelBuilder(_allItems[init]);
+        });
+      } else {
+        setState(() {
+          _selectedIndexInternal = null;
+          _controller.clear();
+        });
+      }
+    }
   }
 
   void _filter(String q) {
@@ -164,7 +237,6 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
       if (widget.validator != null) {
         setState(() => _validationError = widget.validator!(q));
       }
-
       if (widget.onSearch != null) {
         setState(() => isLoading = true);
         try {
@@ -174,7 +246,6 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
           if (mounted) setState(() => isLoading = false);
         }
       }
-
       var list = q.isEmpty
           ? _allItems.asMap().entries.toList()
           : _allItems.asMap().entries.where((e) {
@@ -183,7 +254,6 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
                   ? label.contains(q)
                   : label.toLowerCase().contains(q.toLowerCase());
             }).toList();
-
       if (widget.autoSort) {
         list.sort(
           (a, b) => widget
@@ -191,7 +261,6 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
               .compareTo(widget.labelBuilder(b.value)),
         );
       }
-
       if (mounted) {
         setState(() {
           filtered = list;
@@ -208,7 +277,7 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() {
-        selectedIndex = entry.key;
+        _selectedIndexInternal = entry.key;
         _controller.text = text;
         _controller.selection = TextSelection.collapsed(offset: text.length);
         filtered = _allItems.asMap().entries.toList();
@@ -223,7 +292,7 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
   void _clear() {
     setState(() {
       _controller.clear();
-      selectedIndex = null;
+      _selectedIndexInternal = null;
       filtered = _allItems.asMap().entries.toList();
     });
     widget.onChanged?.call('');
@@ -234,26 +303,17 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
     if (_overlay == null) return;
     if (event is KeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-        setState(
-          () => highlightedIndex = (highlightedIndex + 1).clamp(
-            0,
-            filtered.length - 1,
-          ),
-        );
-        _overlay?.markNeedsBuild();
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-        setState(
-          () => highlightedIndex = (highlightedIndex - 1).clamp(
-            0,
-            filtered.length - 1,
-          ),
-        );
-        _overlay?.markNeedsBuild();
-      } else if (event.logicalKey == LogicalKeyboardKey.enter &&
+        _moveHighlight(1);
+      }
+      else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        _moveHighlight(-1);
+      }
+      else if (event.logicalKey == LogicalKeyboardKey.enter &&
           highlightedIndex >= 0 &&
           highlightedIndex < filtered.length) {
         _select(filtered[highlightedIndex]);
-      } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      }
+      else if (event.logicalKey == LogicalKeyboardKey.escape) {
         _hideOverlay();
       }
     }
@@ -266,7 +326,6 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
     }
     _overlay = _createOverlay();
     Overlay.of(context).insert(_overlay!);
-    _keyboardFocusNode.requestFocus();
   }
 
   void _hideOverlay() {
@@ -283,7 +342,6 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
         : (filtered.length.clamp(0, widget.visibleItemCount) *
                   widget.itemHeight)
               .toDouble();
-
     return OverlayEntry(
       builder: (_) => Stack(
         children: [
@@ -364,7 +422,8 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
                                   : const SizedBox.shrink(),
                               itemBuilder: (_, i) {
                                 final entry = filtered[i];
-                                final isSel = entry.key == selectedIndex;
+                                final isSel =
+                                    entry.key == _selectedIndexInternal;
                                 final isHigh = i == highlightedIndex;
                                 if (widget.itemBuilder != null) {
                                   return InkWell(
