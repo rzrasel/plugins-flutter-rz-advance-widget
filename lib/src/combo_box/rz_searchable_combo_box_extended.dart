@@ -2,8 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// RzSearchableComboBox - works on Android, iOS, Web, Windows, macOS, Linux
-class RzSearchableComboBox<T> extends StatefulWidget {
+class RzSearchableComboBoxExtended<T> extends StatefulWidget {
   final List<T> items;
   final String Function(T) labelBuilder;
   final ValueChanged<int> onSelected;
@@ -20,6 +19,7 @@ class RzSearchableComboBox<T> extends StatefulWidget {
 
   final int? initialIndex;
   final String hintText;
+  final String searchHintText;
   final String labelText;
   final bool isRequired;
   final String noResultText;
@@ -44,8 +44,13 @@ class RzSearchableComboBox<T> extends StatefulWidget {
   final bool showPrefixIcon;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
-  final bool showClearIcon;
+
+  final bool showComboClearIcon;
   final Widget? clearIcon;
+
+  final bool showSearchClearIcon;
+  final Widget? searchClearIcon;
+
   final bool showSuffixIcon;
   final bool enabled;
   final bool autoSort;
@@ -55,7 +60,7 @@ class RzSearchableComboBox<T> extends StatefulWidget {
   final int visibleItemCount;
   final double itemHeight;
 
-  const RzSearchableComboBox({
+  const RzSearchableComboBoxExtended({
     super.key,
     required this.items,
     required this.labelBuilder,
@@ -65,7 +70,8 @@ class RzSearchableComboBox<T> extends StatefulWidget {
     this.itemBuilder,
     this.validator,
     this.initialIndex,
-    this.hintText = 'Search...',
+    this.hintText = 'Select...',
+    this.searchHintText = 'Search...',
     this.labelText = '',
     this.isRequired = false,
     this.noResultText = 'No result found',
@@ -88,8 +94,10 @@ class RzSearchableComboBox<T> extends StatefulWidget {
     this.showPrefixIcon = true,
     this.prefixIcon,
     this.suffixIcon,
-    this.showClearIcon = true,
+    this.showComboClearIcon = true,
     this.clearIcon,
+    this.showSearchClearIcon = true,
+    this.searchClearIcon,
     this.showSuffixIcon = true,
     this.enabled = true,
     this.autoSort = false,
@@ -101,14 +109,17 @@ class RzSearchableComboBox<T> extends StatefulWidget {
   });
 
   @override
-  State<RzSearchableComboBox<T>> createState() =>
-      _RzSearchableComboBoxState<T>();
+  State<RzSearchableComboBoxExtended<T>> createState() =>
+      _RzSearchableComboBoxExtendedState<T>();
 }
 
-class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
-  final _controller = TextEditingController();
+class _RzSearchableComboBoxExtendedState<T>
+    extends State<RzSearchableComboBoxExtended<T>> {
+  final _mainController = TextEditingController();
+  final _overlaySearchController = TextEditingController();
   final _focusNode = FocusNode();
   final _keyboardFocusNode = FocusNode();
+  final _overlaySearchFocusNode = FocusNode();
   final _layerLink = LayerLink();
   final _scrollController = ScrollController();
   Timer? _debounce;
@@ -143,18 +154,34 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
     if (selectedIndex != null &&
         selectedIndex! >= 0 &&
         selectedIndex! < _allItems.length) {
-      _controller.text = widget.labelBuilder(_allItems[selectedIndex!]);
+      _mainController.text = widget.labelBuilder(_allItems[selectedIndex!]);
     }
+    _overlaySearchController.addListener(() {
+      if (mounted) setState(() {});
+    });
 
-    // FIX: Keep keyboard handling on _focusNode so TextField never loses focus
-    _focusNode.onKeyEvent = (node, event) {
-      if (_overlay == null) return KeyEventResult.ignored;
+    // FIX: Keyboard handling on overlay search field
+    _overlaySearchFocusNode.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
         if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-          _moveHighlight(1);
+          setState(
+            () => highlightedIndex = (highlightedIndex + 1).clamp(
+              0,
+              filtered.length - 1,
+            ),
+          );
+          _scrollToHighlighted();
+          _overlay?.markNeedsBuild();
           return KeyEventResult.handled;
         } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-          _moveHighlight(-1);
+          setState(
+            () => highlightedIndex = (highlightedIndex - 1).clamp(
+              0,
+              filtered.length - 1,
+            ),
+          );
+          _scrollToHighlighted();
+          _overlay?.markNeedsBuild();
           return KeyEventResult.handled;
         } else if (event.logicalKey == LogicalKeyboardKey.enter) {
           if (highlightedIndex >= 0 && highlightedIndex < filtered.length) {
@@ -172,15 +199,98 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
     };
   }
 
-  void _moveHighlight(int delta) {
-    setState(() {
-      highlightedIndex = (highlightedIndex + delta).clamp(
-        0,
-        filtered.length - 1,
-      );
+  @override
+  void didUpdateWidget(
+    covariant RzSearchableComboBoxExtended<T> oldWidget,
+  ) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.items != widget.items) {
+      _allItems = List.from(widget.items);
+      filtered = _allItems.asMap().entries.toList();
+      _overlay?.markNeedsBuild();
+    }
+    if (oldWidget.initialIndex != widget.initialIndex) {
+      selectedIndex = widget.initialIndex;
+      if (selectedIndex != null &&
+          selectedIndex! >= 0 &&
+          selectedIndex! < _allItems.length) {
+        _mainController.text = widget.labelBuilder(_allItems[selectedIndex!]);
+      }
+    }
+  }
+
+  void _filter(String q) {
+    _debounce?.cancel();
+    _debounce = Timer(Duration(milliseconds: widget.debounceMs), () async {
+      widget.onChanged?.call(q);
+      if (widget.validator != null) {
+        setState(() => _validationError = widget.validator!(q));
+      }
+      if (widget.onSearch != null) {
+        setState(() => isLoading = true);
+        try {
+          _allItems = await widget.onSearch!(q);
+        } finally {
+          if (mounted) setState(() => isLoading = false);
+        }
+      }
+      var list = q.isEmpty
+          ? _allItems.asMap().entries.toList()
+          : _allItems.asMap().entries.where((e) {
+              final label = widget.labelBuilder(e.value);
+              return widget.caseSensitive
+                  ? label.contains(q)
+                  : label.toLowerCase().contains(q.toLowerCase());
+            }).toList();
+      if (widget.autoSort) {
+        list.sort(
+          (a, b) => widget
+              .labelBuilder(a.value)
+              .compareTo(widget.labelBuilder(b.value)),
+        );
+      }
+      if (mounted) {
+        setState(() {
+          filtered = list;
+          highlightedIndex = filtered.isEmpty ? -1 : 0;
+        });
+      }
+      _overlay?.markNeedsBuild();
     });
-    _scrollToHighlighted();
+  }
+
+  void _select(MapEntry<int, T> entry) {
+    final text = widget.labelBuilder(entry.value);
+    _hideOverlay();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        selectedIndex = entry.key;
+        _mainController.text = text;
+        _overlaySearchController.clear();
+        filtered = _allItems.asMap().entries.toList();
+        highlightedIndex = -1;
+      });
+      widget.onSelected(entry.key);
+      widget.onChanged?.call(text);
+      _focusNode.unfocus();
+    });
+  }
+
+  void _clearMain() {
+    setState(() {
+      _mainController.clear();
+      _overlaySearchController.clear();
+      selectedIndex = null;
+      filtered = _allItems.asMap().entries.toList();
+    });
+    widget.onChanged?.call('');
     _overlay?.markNeedsBuild();
+  }
+
+  void _clearSearch() {
+    _overlaySearchController.clear();
+    _filter('');
   }
 
   void _scrollToHighlighted() {
@@ -193,96 +303,27 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
     );
   }
 
-  @override
-  void didUpdateWidget(covariant RzSearchableComboBox<T> oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.items != widget.items) {
-      _allItems = List.from(widget.items);
-      filtered = _allItems.asMap().entries.toList();
-      _overlay?.markNeedsBuild();
-    }
-  }
-
-  void _filter(String q) {
-    _debounce?.cancel();
-    _debounce = Timer(Duration(milliseconds: widget.debounceMs), () async {
-      widget.onChanged?.call(q);
-      if (widget.validator != null) {
-        setState(() => _validationError = widget.validator!(q));
-      }
-
-      if (widget.onSearch != null) {
-        setState(() => isLoading = true);
-        try {
-          final result = await widget.onSearch!(q);
-          _allItems = result;
-        } finally {
-          if (mounted) setState(() => isLoading = false);
-        }
-      }
-
-      var list = q.isEmpty
-          ? _allItems.asMap().entries.toList()
-          : _allItems.asMap().entries.where((e) {
-              final label = widget.labelBuilder(e.value);
-              return widget.caseSensitive
-                  ? label.contains(q)
-                  : label.toLowerCase().contains(q.toLowerCase());
-            }).toList();
-
-      if (widget.autoSort) {
-        list.sort(
-          (a, b) => widget
-              .labelBuilder(a.value)
-              .compareTo(widget.labelBuilder(b.value)),
-        );
-      }
-
-      if (mounted) {
-        setState(() {
-          filtered = list;
-          highlightedIndex = filtered.isEmpty ? -1 : 0;
-        });
-      }
-      _showOverlay();
-    });
-  }
-
-  void _select(MapEntry<int, T> entry) {
-    final text = widget.labelBuilder(entry.value);
-    _hideOverlay();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() {
-        selectedIndex = entry.key;
-        _controller.text = text;
-        _controller.selection = TextSelection.collapsed(offset: text.length);
-        filtered = _allItems.asMap().entries.toList();
-        highlightedIndex = -1;
-      });
-      widget.onSelected(entry.key);
-      widget.onChanged?.call(text);
-      _focusNode.unfocus();
-    });
-  }
-
-  void _clear() {
-    setState(() {
-      _controller.clear();
-      selectedIndex = null;
-      filtered = _allItems.asMap().entries.toList();
-    });
-    widget.onChanged?.call('');
-    _overlay?.markNeedsBuild();
-  }
-
   void _handleKey(KeyEvent event) {
     if (_overlay == null) return;
     if (event is KeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-        _moveHighlight(1);
+        setState(
+          () => highlightedIndex = (highlightedIndex + 1).clamp(
+            0,
+            filtered.length - 1,
+          ),
+        );
+        _scrollToHighlighted();
+        _overlay?.markNeedsBuild();
       } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-        _moveHighlight(-1);
+        setState(
+          () => highlightedIndex = (highlightedIndex - 1).clamp(
+            0,
+            filtered.length - 1,
+          ),
+        );
+        _scrollToHighlighted();
+        _overlay?.markNeedsBuild();
       } else if (event.logicalKey == LogicalKeyboardKey.enter &&
           highlightedIndex >= 0 &&
           highlightedIndex < filtered.length) {
@@ -300,25 +341,25 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
     }
     _overlay = _createOverlay();
     Overlay.of(context).insert(_overlay!);
-    // FIX: DO NOT steal focus from _focusNode
-    // _keyboardFocusNode.requestFocus(); <- REMOVED
+    _keyboardFocusNode.requestFocus();
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _overlaySearchFocusNode.requestFocus();
+    });
   }
 
   void _hideOverlay() {
     _overlay?.remove();
     _overlay = null;
+    _overlaySearchFocusNode.unfocus();
     if (mounted) setState(() => highlightedIndex = -1);
   }
 
   OverlayEntry _createOverlay() {
     final box = context.findRenderObject() as RenderBox;
     final size = box.size;
-    final maxH = widget.visibleItemCount == -1
+    final listMaxH = widget.visibleItemCount == -1
         ? 300.0
-        : (filtered.length.clamp(0, widget.visibleItemCount) *
-                  widget.itemHeight)
-              .toDouble();
-
+        : (widget.visibleItemCount * widget.itemHeight).toDouble();
     return OverlayEntry(
       builder: (_) => Stack(
         children: [
@@ -334,17 +375,9 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
               link: _layerLink,
               showWhenUnlinked: false,
               offset: Offset(0, size.height + 4),
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 150),
-                builder: (_, v, child) => Opacity(
-                  opacity: v,
-                  child: Transform.scale(
-                    scale: 0.95 + (0.05 * v),
-                    alignment: Alignment.topCenter,
-                    child: child,
-                  ),
-                ),
+              child: KeyboardListener(
+                focusNode: _keyboardFocusNode,
+                onKeyEvent: _handleKey,
                 child: Material(
                   color: widget.listBackgroundColor,
                   elevation: 8,
@@ -353,101 +386,166 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
                     side: BorderSide(color: _listBorder),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: maxH),
-                    child: Scrollbar(
-                      controller: _scrollController,
-                      thumbVisibility: widget.showScrollbar,
-                      child: isLoading
-                          ? const SizedBox(
-                              height: 48,
-                              child: Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: TextField(
+                          controller: _overlaySearchController,
+                          focusNode: _overlaySearchFocusNode,
+                          autofocus: true,
+                          style: TextStyle(
+                            fontSize: widget.fontSize,
+                            fontWeight: widget.fontWeight,
+                            color: widget.fontColor,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: widget.searchHintText,
+                            isDense: true,
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            suffixIcon:
+                                widget.showSearchClearIcon &&
+                                    _overlaySearchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon:
+                                        widget.searchClearIcon ??
+                                        const Icon(Icons.clear, size: 20),
+                                    onPressed: _clearSearch,
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                widget.borderRadius,
                               ),
-                            )
-                          : filtered.isEmpty
-                          ? SizedBox(
-                              height: widget.itemHeight,
-                              child: ListTile(
-                                title: Text(
-                                  widget.noResultText,
-                                  style: TextStyle(
-                                    fontSize: widget.noResultFontSize,
-                                    fontWeight: widget.noResultFontWeight,
-                                    color: widget.noResultFontColor,
-                                  ),
-                                ),
+                              borderSide: BorderSide(color: _listBorder),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                widget.borderRadius,
                               ),
-                            )
-                          : ListView.separated(
-                              controller: _scrollController,
-                              padding: EdgeInsets.zero,
-                              shrinkWrap: true,
-                              itemCount: filtered.length,
-                              separatorBuilder: (_, __) => widget.showDivider
-                                  ? Divider(
-                                      height: widget.dividerHeight,
-                                      color: widget.dividerColor,
-                                      thickness: widget.dividerHeight,
-                                    )
-                                  : const SizedBox.shrink(),
-                              itemBuilder: (_, i) {
-                                final entry = filtered[i];
-                                final isSel = entry.key == selectedIndex;
-                                final isHigh = i == highlightedIndex;
-                                if (widget.itemBuilder != null) {
-                                  return InkWell(
-                                    onTap: () => _select(entry),
-                                    child: widget.itemBuilder!(
-                                      context,
-                                      entry.value,
-                                      isSel,
-                                      isHigh,
-                                    ),
-                                  );
-                                }
-                                return Container(
-                                  color: isHigh
-                                      ? Colors.blue.withValues(alpha: 0.08)
-                                      : (isSel
-                                            ? Colors.grey.withValues(
-                                                alpha: 0.15,
-                                              )
-                                            : null),
-                                  child: InkWell(
-                                    onTap: () => _select(entry),
+                              borderSide: BorderSide(color: _listBorder),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                widget.borderRadius,
+                              ),
+                              borderSide: BorderSide(
+                                color: _listBorder,
+                                width: 1.2,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                          ),
+                          onChanged: _filter,
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: listMaxH),
+                        child: Scrollbar(
+                          controller: _scrollController,
+                          thumbVisibility: widget.showScrollbar,
+                          child: isLoading
+                              ? const SizedBox(
+                                  height: 48,
+                                  child: Center(
                                     child: SizedBox(
-                                      height: widget.itemHeight,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : filtered.isEmpty
+                              ? SizedBox(
+                                  height: widget.itemHeight,
+                                  child: Center(
+                                    child: Text(
+                                      widget.noResultText,
+                                      style: TextStyle(
+                                        fontSize: widget.noResultFontSize,
+                                        fontWeight: widget.noResultFontWeight,
+                                        color: widget.noResultFontColor,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : ListView.separated(
+                                  controller: _scrollController,
+                                  padding: EdgeInsets.zero,
+                                  shrinkWrap: true,
+                                  itemCount: filtered.length,
+                                  separatorBuilder: (_, __) =>
+                                      widget.showDivider
+                                      ? Divider(
+                                          height: widget.dividerHeight,
+                                          color: widget.dividerColor,
+                                          thickness: widget.dividerHeight,
+                                        )
+                                      : const SizedBox.shrink(),
+                                  itemBuilder: (_, i) {
+                                    final entry = filtered[i];
+                                    final isSel = entry.key == selectedIndex;
+                                    final isHigh = i == highlightedIndex;
+                                    if (widget.itemBuilder != null) {
+                                      return InkWell(
+                                        onTap: () => _select(entry),
+                                        child: widget.itemBuilder!(
+                                          context,
+                                          entry.value,
+                                          isSel,
+                                          isHigh,
                                         ),
-                                        child: Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            widget.labelBuilder(entry.value),
-                                            style: TextStyle(
-                                              fontSize: widget.fontSize,
-                                              fontWeight: isSel
-                                                  ? FontWeight.w600
-                                                  : widget.fontWeight,
-                                              color: widget.fontColor,
+                                      );
+                                    }
+                                    return Container(
+                                      color: isHigh
+                                          ? Colors.blue.withValues(alpha: 0.08)
+                                          : (isSel
+                                                ? Colors.grey.withValues(
+                                                    alpha: 0.15,
+                                                  )
+                                                : null),
+                                      child: InkWell(
+                                        onTap: () => _select(entry),
+                                        child: SizedBox(
+                                          height: widget.itemHeight,
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                            ),
+                                            child: Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: Text(
+                                                widget.labelBuilder(
+                                                  entry.value,
+                                                ),
+                                                style: TextStyle(
+                                                  fontSize: widget.fontSize,
+                                                  fontWeight: isSel
+                                                      ? FontWeight.w600
+                                                      : widget.fontWeight,
+                                                  color: widget.fontColor,
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -461,9 +559,11 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
   @override
   void dispose() {
     _hideOverlay();
-    _controller.dispose();
+    _mainController.dispose();
+    _overlaySearchController.dispose();
     _focusNode.dispose();
     _keyboardFocusNode.dispose();
+    _overlaySearchFocusNode.dispose();
     _scrollController.dispose();
     _debounce?.cancel();
     super.dispose();
@@ -498,9 +598,10 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
                 ),
               ),
             TextField(
-              controller: _controller,
+              controller: _mainController,
               focusNode: _focusNode,
               enabled: widget.enabled,
+              readOnly: true,
               style: TextStyle(
                 fontSize: widget.fontSize,
                 fontWeight: widget.fontWeight,
@@ -518,21 +619,13 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (isLoading)
-                      const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    if (widget.showClearIcon && _controller.text.isNotEmpty)
+                    if (widget.showComboClearIcon &&
+                        _mainController.text.isNotEmpty)
                       IconButton(
                         icon:
                             widget.clearIcon ??
                             const Icon(Icons.clear, size: 20),
-                        onPressed: _clear,
+                        onPressed: _clearMain,
                       ),
                     if (widget.showSuffixIcon)
                       IconButton(
@@ -540,10 +633,11 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
                             widget.suffixIcon ??
                             const Icon(Icons.arrow_drop_down),
                         onPressed: () {
+                          if (!widget.enabled) return;
                           if (_overlay == null) {
                             filtered = _allItems.asMap().entries.toList();
+                            _overlaySearchController.clear();
                             _showOverlay();
-                            _focusNode.requestFocus();
                           } else {
                             _hideOverlay();
                           }
@@ -573,10 +667,10 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
                   borderSide: BorderSide(color: _comboBorder),
                 ),
               ),
-              onChanged: _filter,
               onTap: () {
                 if (!widget.enabled) return;
                 filtered = _allItems.asMap().entries.toList();
+                _overlaySearchController.clear();
                 _showOverlay();
               },
             ),
