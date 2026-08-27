@@ -13,6 +13,7 @@ export 'src/checkbox/rz_custom_checkbox.dart';
 export 'src/checkbox/rz_remember_me.dart';
 
 // Combo Box
+export 'src/combo_box/rz_combo_box_basic.dart';
 export 'src/combo_box/rz_searchable_combo_box.dart';
 export 'src/combo_box/rz_searchable_combo_box_extended.dart';
 
@@ -31,6 +32,9 @@ export 'src/loader/rz_full_screen_loader.dart';
 // Shimmer
 export 'src/shimmer/rz_shimmer.dart';
 export 'src/shimmer_effect/rz_shimmer_effect.dart';
+
+// Table
+export 'src/table/data_table/rz_material_data_table_basic.dart';
 
 // Text Form Field
 export 'src/text_form_field/rz_icon_password_form_field.dart';
