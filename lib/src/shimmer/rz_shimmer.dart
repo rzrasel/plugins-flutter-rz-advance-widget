@@ -155,10 +155,10 @@ class _RzShimmerState extends State<RzShimmer> with SingleTickerProviderStateMix
       animation: _controller,
       child: widget.child,
       builder: (BuildContext context, Widget? child) => _RzShimmer(
-        child: child,
         direction: widget.direction,
         gradient: widget.gradient,
         percent: _controller.value,
+        child: child,
       ),
     );
   }

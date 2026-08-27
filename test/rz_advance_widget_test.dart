@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rz_advance_widget/rz_advance_widget.dart';
 import 'package:rz_advance_widget/rz_advance_widget_platform_interface.dart';
 import 'package:rz_advance_widget/rz_advance_widget_method_channel.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';

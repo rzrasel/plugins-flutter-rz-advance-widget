@@ -13,7 +13,7 @@ class RzFullScreenLoader {
       context: context,
       barrierDismissible: false,
       builder: (_)=> PopScope(
-          child: Container(
+          child: SizedBox(
             width: double.infinity,
             height: double.infinity,
             child: Column(
@@ -36,7 +36,7 @@ class RzFullScreenLoader {
     );*/
   }
 
-  static stopLoading(BuildContext context) {
+  static void stopLoading(BuildContext context) {
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }

@@ -506,7 +506,7 @@ class _RzSearchableComboBoxExtendedState<T>
                                   padding: EdgeInsets.zero,
                                   shrinkWrap: true,
                                   itemCount: filtered.length,
-                                  separatorBuilder: (_, __) =>
+                                  separatorBuilder: (_, _) =>
                                       widget.showDivider
                                       ? Divider(
                                           height: widget.dividerHeight,

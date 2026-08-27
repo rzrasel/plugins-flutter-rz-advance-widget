@@ -413,7 +413,7 @@ class _RzSearchableComboBoxState<T> extends State<RzSearchableComboBox<T>> {
                               padding: EdgeInsets.zero,
                               shrinkWrap: true,
                               itemCount: filtered.length,
-                              separatorBuilder: (_, __) => widget.showDivider
+                              separatorBuilder: (_, _) => widget.showDivider
                                   ? Divider(
                                       height: widget.dividerHeight,
                                       color: widget.dividerColor,
