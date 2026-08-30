@@ -4,19 +4,21 @@ enum RzMaterialDataTableBasicAlign { left, center, right }
 
 enum RzMaterialDataTableBasicPaginationMode { full, minimal, compact }
 
-class RzMaterialDataTableBasicDemo<T> extends StatefulWidget {
+class RzMaterialDataTableBasic<T> extends StatefulWidget {
   final List<dynamic>? headers;
   final List<T> items;
   final List<dynamic> Function(T item)? rowBuilder;
   final String Function(T item) searchableBuilder;
   final Comparable Function(T item, int columnIndex)? sortValueBuilder;
   final void Function(T item)? onRowTap;
+
   final bool showSearch;
   final bool showPagination;
   final int rowsPerPage;
   final List<int> rowsPerPageOptions;
   final double borderRadius;
   final Color borderColor;
+
   final bool showHeader;
   final bool enableOddEven;
   final Color oddRowColor;
@@ -25,30 +27,37 @@ class RzMaterialDataTableBasicDemo<T> extends StatefulWidget {
   final Widget? footer;
   final Widget? emptyWidget;
   final List<DataColumn>? columns;
+
   final bool showScrollbar;
   final bool showHorizontalScrollbar;
   final double? maxHeight;
-  final List<double>? columnWidths; // -1 = fill remaining = match parent
+
+  final List<double>? columnWidths;
   final List<double>? columnMinWidths;
+
   final RzMaterialDataTableBasicAlign align;
   final RzMaterialDataTableBasicAlign headerAlign;
   final List<RzMaterialDataTableBasicAlign>? columnAligns;
+
   final FontWeight headerFontWeight;
   final FontWeight cellFontWeight;
   final double? headerFontSize;
   final double? cellFontSize;
   final TextStyle? headerTextStyle;
   final TextStyle? cellTextStyle;
+
   final dynamic tableHeader;
   final RzMaterialDataTableBasicAlign tableHeaderAlign;
   final double? tableHeaderFontSize;
   final FontWeight tableHeaderFontWeight;
   final TextStyle? tableHeaderTextStyle;
+
   final dynamic tableFooter;
   final RzMaterialDataTableBasicAlign tableFooterAlign;
   final double? tableFooterFontSize;
   final FontWeight tableFooterFontWeight;
   final TextStyle? tableFooterTextStyle;
+
   final bool enableDoubleClickEdit;
   final List<bool>? editableColumns;
   final void Function(T item, int columnIndex, dynamic newValue)? onCellChanged;
@@ -60,8 +69,10 @@ class RzMaterialDataTableBasicDemo<T> extends StatefulWidget {
     VoidCallback onCancel,
   )?
   cellEditorBuilder;
+
   final bool enableSorting;
   final List<bool>? sortableColumns;
+
   final RzMaterialDataTableBasicPaginationMode paginationMode;
   final RzMaterialDataTableBasicAlign paginationAlign;
   final bool showFirstButton;
@@ -79,12 +90,13 @@ class RzMaterialDataTableBasicDemo<T> extends StatefulWidget {
   final double paginationButtonBorderRadius;
   final double paginationButtonPaddingH;
   final double paginationButtonPaddingV;
+
   final String paginationFirstText;
   final String paginationPrevText;
   final String paginationNextText;
   final String paginationLastText;
 
-  const RzMaterialDataTableBasicDemo({
+  const RzMaterialDataTableBasic({
     super.key,
     this.headers,
     this.columns,
@@ -107,7 +119,7 @@ class RzMaterialDataTableBasicDemo<T> extends StatefulWidget {
     this.footer,
     this.emptyWidget,
     this.showScrollbar = true,
-    this.showHorizontalScrollbar = false,
+    this.showHorizontalScrollbar = true,
     this.maxHeight,
     this.columnWidths,
     this.columnMinWidths,
@@ -160,12 +172,12 @@ class RzMaterialDataTableBasicDemo<T> extends StatefulWidget {
   });
 
   @override
-  State<RzMaterialDataTableBasicDemo<T>> createState() =>
+  State<RzMaterialDataTableBasic<T>> createState() =>
       _RzMaterialDataTableBasicState<T>();
 }
 
 class _RzMaterialDataTableBasicState<T>
-    extends State<RzMaterialDataTableBasicDemo<T>> {
+    extends State<RzMaterialDataTableBasic<T>> {
   late List<T> filtered;
   late List<T> displayed;
   String query = '';
@@ -189,7 +201,7 @@ class _RzMaterialDataTableBasicState<T>
   }
 
   @override
-  void didUpdateWidget(covariant RzMaterialDataTableBasicDemo<T> oldWidget) {
+  void didUpdateWidget(covariant RzMaterialDataTableBasic<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.items != widget.items) {
       filtered = List.from(widget.items);
@@ -203,7 +215,9 @@ class _RzMaterialDataTableBasicState<T>
             )
             .toList();
       }
-      if (sortCol != -1) _applySortWithoutSetState();
+      if (sortCol != -1) {
+        _applySortWithoutSetState();
+      }
       page = 0;
       _paginate();
       setState(() {});
@@ -238,8 +252,12 @@ class _RzMaterialDataTableBasicState<T>
 
   bool _isSortable(int col) {
     if (!widget.enableSorting) return false;
-    if (widget.sortableColumns != null && col < widget.sortableColumns!.length) {
-      return widget.sortableColumns![col];
+    if (widget.sortableColumns != null) {
+      if (col < widget.sortableColumns!.length) {
+        return widget.sortableColumns![col];
+      } else {
+        return false;
+      }
     }
     return true;
   }
@@ -295,13 +313,13 @@ class _RzMaterialDataTableBasicState<T>
       displayed = [];
       return;
     }
-    int start = page * _currentRowsPerPage;
+    final start = page * _currentRowsPerPage;
     if (start >= filtered.length) {
       page = 0;
       displayed = filtered.take(_currentRowsPerPage).toList();
       return;
     }
-    int end = (start + _currentRowsPerPage).clamp(0, filtered.length);
+    final end = (start + _currentRowsPerPage).clamp(0, filtered.length);
     displayed = filtered.sublist(start, end);
   }
 
@@ -315,7 +333,7 @@ class _RzMaterialDataTableBasicState<T>
   }
 
   void _goToPage(int p) {
-    int total = (filtered.length / _currentRowsPerPage).ceil();
+    final total = (filtered.length / _currentRowsPerPage).ceil();
     setState(() {
       page = p.clamp(0, total - 1);
       _paginate();
@@ -323,15 +341,25 @@ class _RzMaterialDataTableBasicState<T>
   }
 
   Alignment _toAlign(RzMaterialDataTableBasicAlign a) {
-    if (a == RzMaterialDataTableBasicAlign.left) return Alignment.centerLeft;
-    if (a == RzMaterialDataTableBasicAlign.right) return Alignment.centerRight;
-    return Alignment.center;
+    switch (a) {
+      case RzMaterialDataTableBasicAlign.left:
+        return Alignment.centerLeft;
+      case RzMaterialDataTableBasicAlign.right:
+        return Alignment.centerRight;
+      default:
+        return Alignment.center;
+    }
   }
 
   MainAxisAlignment _toMainAlign(RzMaterialDataTableBasicAlign a) {
-    if (a == RzMaterialDataTableBasicAlign.left) return MainAxisAlignment.start;
-    if (a == RzMaterialDataTableBasicAlign.right) return MainAxisAlignment.end;
-    return MainAxisAlignment.center;
+    switch (a) {
+      case RzMaterialDataTableBasicAlign.left:
+        return MainAxisAlignment.start;
+      case RzMaterialDataTableBasicAlign.right:
+        return MainAxisAlignment.end;
+      default:
+        return MainAxisAlignment.center;
+    }
   }
 
   RzMaterialDataTableBasicAlign _colAlign(int i) =>
@@ -349,47 +377,24 @@ class _RzMaterialDataTableBasicState<T>
       ? widget.editableColumns![col]
       : true;
 
-  List<TableColumnWidth> _buildColumnWidths(int columnCount) {
-    List<TableColumnWidth> widths = [];
-    for (int i = 0; i < columnCount; i++) {
-      if (widget.columnWidths != null && i < widget.columnWidths!.length) {
-        double w = widget.columnWidths![i];
-        if (w == -1) {
-          widths.add(const FlexColumnWidth());
-        } else {
-          widths.add(FixedColumnWidth(w));
-        }
-      } else {
-        widths.add(const FlexColumnWidth());
-      }
+  Widget _wrapSizedAligned(Widget child, int index, {bool isHeader = false}) {
+    final w = widget.columnWidths != null && index < widget.columnWidths!.length
+        ? widget.columnWidths![index]
+        : null;
+    final minW =
+        widget.columnMinWidths != null && index < widget.columnMinWidths!.length
+        ? widget.columnMinWidths![index]
+        : null;
+    final align = isHeader ? _headerColAlign(index) : _colAlign(index);
+    Widget aligned = Align(alignment: _toAlign(align), child: child);
+    if (w != null) return SizedBox(width: w, child: aligned);
+    if (minW != null) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(minWidth: minW),
+        child: aligned,
+      );
     }
-    return widths;
-  }
-
-  // RIGHT ALIGN FIXED HERE
-  Widget _buildCell(Widget child, int index, {bool isHeader = false}) {
-    RzMaterialDataTableBasicAlign alignValue = isHeader
-        ? _headerColAlign(index)
-        : _colAlign(index);
-    Alignment alignment = _toAlign(alignValue);
-
-    // FIXED WIDTH CELL - SizedBox with Align for right align
-    if (widget.columnWidths != null && index < widget.columnWidths!.length) {
-      double w = widget.columnWidths![index];
-      if (w != -1) {
-        return Container(
-          width: w,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          child: Align(alignment: alignment, child: child),
-        );
-      }
-    }
-
-    // FILL COLUMN - -1 = takes remaining width - RIGHT ALIGN WORKS
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      child: Align(alignment: alignment, child: child),
-    );
+    return aligned;
   }
 
   Widget _buildHeaderItem(dynamic item) {
@@ -400,7 +405,7 @@ class _RzMaterialDataTableBasicState<T>
           fontSize: widget.headerFontSize ?? 14,
         );
     if (item is Widget) return item;
-    return Text(item.toString(), style: style, softWrap: true);
+    return Text(item.toString(), style: style);
   }
 
   Widget _buildCellItem(dynamic item) {
@@ -411,12 +416,7 @@ class _RzMaterialDataTableBasicState<T>
           fontSize: widget.cellFontSize ?? 13,
         );
     if (item is Widget) return item;
-    return Text(
-      item.toString(),
-      style: style,
-      softWrap: true,
-      overflow: TextOverflow.visible,
-    );
+    return Text(item.toString(), style: style, overflow: TextOverflow.ellipsis);
   }
 
   Widget _buildDynamicText(
@@ -439,176 +439,69 @@ class _RzMaterialDataTableBasicState<T>
     );
   }
 
-  int _getColumnCount() {
-    if (widget.headers != null) return widget.headers!.length;
-    if (widget.columns != null) return widget.columns!.length;
-    if (widget.rowBuilder != null && filtered.isNotEmpty) {
-      return widget.rowBuilder!(filtered.first).length;
-    }
-    return 0;
-  }
-
-  Widget _buildTable() {
-    int columnCount = _getColumnCount();
-    if (columnCount == 0) {
-      return widget.emptyWidget ??
-          const Padding(padding: EdgeInsets.all(24), child: Text('No data'));
-    }
-
-    List<TableColumnWidth> columnWidths = _buildColumnWidths(columnCount);
-
-    List<Widget> headerCells = [];
-    for (int i = 0; i < columnCount; i++) {
-      Widget headerChild;
-      if (widget.headers != null && i < widget.headers!.length) {
-        headerChild = _buildHeaderItem(widget.headers![i]);
-      } else {
-        headerChild = Text('Col ${i + 1}');
-      }
-      bool sortable = _isSortable(i);
-      if (sortable) {
-        headerChild = Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: _toMainAlign(_headerColAlign(i)),
-          children: [
-            Flexible(child: headerChild),
-            const SizedBox(width: 4),
-            Icon(
-              sortCol == i
-                  ? (asc ? Icons.arrow_upward : Icons.arrow_downward)
-                  : Icons.unfold_more,
-              size: 14,
-              color: sortCol == i ? Colors.black87 : Colors.black38,
+  List<DataColumn> _buildColumns() {
+    if (widget.columns != null) return widget.columns!;
+    if (widget.headers != null) {
+      return List.generate(widget.headers!.length, (i) {
+        final sortable = _isSortable(i);
+        return DataColumn(
+          label: _wrapSizedAligned(
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHeaderItem(widget.headers![i]),
+                if (sortable) const SizedBox(width: 4),
+                if (sortable)
+                  Icon(
+                    sortCol == i
+                        ? (asc ? Icons.arrow_upward : Icons.arrow_downward)
+                        : Icons.unfold_more,
+                    size: 14,
+                    color: sortCol == i ? Colors.black87 : Colors.black38,
+                  ),
+              ],
             ),
-          ],
-        );
-      }
-      Widget cell = _buildCell(headerChild, i, isHeader: true);
-      if (sortable) cell = InkWell(onTap: () => _sort(i), child: cell);
-      headerCells.add(cell);
-    }
-
-    List<TableRow> rows = [];
-    rows.add(
-      TableRow(
-        decoration: BoxDecoration(color: widget.headerColor),
-        children: headerCells,
-      ),
-    );
-
-    for (int rowIndex = 0; rowIndex < displayed.length; rowIndex++) {
-      int globalIndex = page * _currentRowsPerPage + rowIndex;
-      T item = displayed[rowIndex];
-      bool isOdd = globalIndex % 2 == 1;
-      List<dynamic> rowData = widget.rowBuilder != null
-          ? widget.rowBuilder!(item)
-          : List.generate(columnCount, (i) => '');
-      while (rowData.length < columnCount) {
-        rowData.add('');
-      }
-
-      List<Widget> dataCells = [];
-      for (int colIndex = 0; colIndex < columnCount; colIndex++) {
-        bool isEditing = editingRow == rowIndex && editingCol == colIndex;
-        dynamic currentValue = rowData[colIndex];
-        bool canEdit = widget.enableDoubleClickEdit && _isEditable(colIndex);
-        Widget cellContent;
-        if (isEditing) {
-          if (widget.cellEditorBuilder != null) {
-            cellContent = widget.cellEditorBuilder!(
-              item,
-              colIndex,
-              currentValue,
-              (newVal) {
-                setState(() {
-                  editingRow = null;
-                  editingCol = null;
-                });
-                widget.onCellChanged?.call(item, colIndex, newVal);
-              },
-              () {
-                setState(() {
-                  editingRow = null;
-                  editingCol = null;
-                });
-              },
-            );
-          } else {
-            cellContent = SizedBox(
-              width: 150,
-              child: TextField(
-                controller: _editController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (v) {
-                  setState(() {
-                    editingRow = null;
-                    editingCol = null;
-                  });
-                  widget.onCellChanged?.call(item, colIndex, v);
-                },
-              ),
-            );
-          }
-        } else {
-          cellContent = _buildCellItem(currentValue);
-          if (canEdit) {
-            cellContent = GestureDetector(
-              onDoubleTap: () {
-                setState(() {
-                  editingRow = rowIndex;
-                  editingCol = colIndex;
-                  _editController.text = currentValue is String
-                      ? currentValue
-                      : currentValue is Widget
-                      ? ''
-                      : currentValue.toString();
-                });
-              },
-              child: cellContent,
-            );
-          }
-        }
-        Widget cell = _buildCell(cellContent, colIndex, isHeader: false);
-        if (widget.onRowTap != null) {
-          cell = InkWell(onTap: () => widget.onRowTap!(item), child: cell);
-        }
-        dataCells.add(cell);
-      }
-
-      Color rowColor = widget.enableOddEven
-          ? (isOdd ? widget.evenRowColor : widget.oddRowColor)
-          : Colors.transparent;
-      rows.add(
-        TableRow(
-          decoration: BoxDecoration(
-            color: rowColor,
-            border: Border(
-              bottom: BorderSide(color: widget.borderColor.withValues(alpha: 0.5)),
-            ),
+            i,
+            isHeader: true,
           ),
-          children: dataCells,
-        ),
-      );
+          onSort: sortable ? (idx, _) => _sort(idx) : null,
+        );
+      });
     }
-
-    return Table(
-      columnWidths: columnWidths.asMap().map((i, w) => MapEntry(i, w)),
-      border: TableBorder(
-        horizontalInside: BorderSide(
-          color: widget.borderColor.withValues(alpha: 0.5),
-        ),
-      ),
-      children: rows,
-    );
+    if (filtered.isNotEmpty && widget.rowBuilder != null) {
+      final count = widget.rowBuilder!(filtered.first).length;
+      return List.generate(count, (i) {
+        final sortable = _isSortable(i);
+        return DataColumn(
+          label: _wrapSizedAligned(
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Col ${i + 1}'),
+                if (sortable) const SizedBox(width: 4),
+                if (sortable)
+                  Icon(
+                    sortCol == i
+                        ? (asc ? Icons.arrow_upward : Icons.arrow_downward)
+                        : Icons.unfold_more,
+                    size: 14,
+                  ),
+              ],
+            ),
+            i,
+            isHeader: true,
+          ),
+          onSort: sortable ? (idx, _) => _sort(idx) : null,
+        );
+      });
+    }
+    return [];
   }
 
   List<Widget> _buildPageNumbers(int totalPages) {
     List<Widget> widgets = [];
     int current = page;
+
     Widget pageBtn(int index) {
       bool active = index == current;
       return InkWell(
@@ -660,6 +553,7 @@ class _RzMaterialDataTableBasicState<T>
         ),
       ),
     );
+
     if (totalPages <= 7 ||
         widget.paginationMode ==
             RzMaterialDataTableBasicPaginationMode.compact) {
@@ -669,46 +563,160 @@ class _RzMaterialDataTableBasicState<T>
     } else {
       Set<int> added = {};
       List<Widget> result = [];
+
       for (int i = 0; i < 3 && i < totalPages; i++) {
         result.add(pageBtn(i));
         added.add(i);
       }
+
       if (current > 4) result.add(dots());
+
+      if (widget.showMidRange && totalPages >= widget.midRangeThreshold) {
+        if (current <= 4) {
+          if (!added.contains(3)) {
+            result.add(pageBtn(3));
+            added.add(3);
+          }
+          if (!added.contains(4)) {
+            result.add(pageBtn(4));
+            added.add(4);
+          }
+        } else if (current >= totalPages - 5) {
+          if (!added.contains(totalPages - 5)) {
+            result.add(pageBtn(totalPages - 5));
+            added.add(totalPages - 5);
+          }
+          if (!added.contains(totalPages - 4)) {
+            result.add(pageBtn(totalPages - 4));
+            added.add(totalPages - 4);
+          }
+        } else {
+          if ((current - 1) > 2 &&
+              (current - 1) < totalPages - 3 &&
+              !added.contains(current - 1)) {
+            result.add(pageBtn(current - 1));
+            added.add(current - 1);
+          }
+          if (current > 2 &&
+              current < totalPages - 3 &&
+              !added.contains(current)) {
+            result.add(pageBtn(current));
+            added.add(current);
+          }
+          if ((current + 1) > 2 &&
+              (current + 1) < totalPages - 3 &&
+              !added.contains(current + 1)) {
+            result.add(pageBtn(current + 1));
+            added.add(current + 1);
+          }
+        }
+
+        int mid = totalPages ~/ 2;
+        if (mid > 2 && mid < totalPages - 3) {
+          if (mid - 1 > 2 &&
+              mid - 1 < totalPages - 3 &&
+              !added.contains(mid - 1) &&
+              (mid - 1) != current &&
+              (mid - 1) != current - 1 &&
+              (mid - 1) != current + 1) {
+            result.add(pageBtn(mid - 1));
+            added.add(mid - 1);
+          }
+          if (!added.contains(mid) &&
+              mid != current &&
+              mid != current - 1 &&
+              mid != current + 1) {
+            result.add(pageBtn(mid));
+            added.add(mid);
+          }
+          if (mid + 1 > 2 &&
+              mid + 1 < totalPages - 3 &&
+              !added.contains(mid + 1) &&
+              (mid + 1) != current &&
+              (mid + 1) != current - 1 &&
+              (mid + 1) != current + 1) {
+            result.add(pageBtn(mid + 1));
+            added.add(mid + 1);
+          }
+        }
+      } else {
+        if (current > 3 && current < totalPages - 4) {
+          if (!added.contains(current - 1)) {
+            result.add(pageBtn(current - 1));
+            added.add(current - 1);
+          }
+          if (!added.contains(current)) {
+            result.add(pageBtn(current));
+            added.add(current);
+          }
+          if (!added.contains(current + 1)) {
+            result.add(pageBtn(current + 1));
+            added.add(current + 1);
+          }
+        } else if (current <= 3) {
+          if (!added.contains(3)) {
+            result.add(pageBtn(3));
+            added.add(3);
+          }
+          if (!added.contains(4)) {
+            result.add(pageBtn(4));
+            added.add(4);
+          }
+        } else {
+          if (!added.contains(totalPages - 5)) {
+            result.add(pageBtn(totalPages - 5));
+            added.add(totalPages - 5);
+          }
+          if (!added.contains(totalPages - 4)) {
+            result.add(pageBtn(totalPages - 4));
+            added.add(totalPages - 4);
+          }
+        }
+      }
+
+      if (current < totalPages - 5) result.add(dots());
+
       for (int i = totalPages - 3; i < totalPages; i++) {
         if (i >= 0 && i < totalPages && !added.contains(i)) {
           result.add(pageBtn(i));
           added.add(i);
         }
       }
+
       widgets = result;
     }
+
     return widgets;
   }
 
-  Widget _navButton(String label, VoidCallback? onTap) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(widget.paginationButtonBorderRadius),
-    child: Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: widget.paginationButtonPaddingH + 2,
-        vertical: widget.paginationButtonPaddingV,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(
-          widget.paginationButtonBorderRadius,
+  Widget _navButton(String label, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(widget.paginationButtonBorderRadius),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: widget.paginationButtonPaddingH + 2,
+          vertical: widget.paginationButtonPaddingV,
         ),
-        border: Border.all(color: widget.paginationButtonBorderColor),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: widget.paginationButtonFontSize,
-          fontWeight: widget.paginationButtonFontWeight,
-          color: onTap == null ? Colors.grey : widget.paginationButtonTextColor,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(
+            widget.paginationButtonBorderRadius,
+          ),
+          border: Border.all(color: widget.paginationButtonBorderColor),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: widget.paginationButtonFontSize,
+            fontWeight: widget.paginationButtonFontWeight,
+            color: onTap == null
+                ? Colors.grey
+                : widget.paginationButtonTextColor,
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _buildPagination(int totalPages) {
     if (totalPages <= 1) return const SizedBox();
@@ -731,7 +739,13 @@ class _RzMaterialDataTableBasicState<T>
             ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text('${page + 1} / $totalPages'),
+            child: Text(
+              '${page + 1} / $totalPages',
+              style: TextStyle(
+                fontSize: widget.paginationButtonFontSize,
+                fontWeight: widget.paginationButtonFontWeight,
+              ),
+            ),
           ),
           if (widget.showPrevNext)
             _navButton(
@@ -799,6 +813,7 @@ class _RzMaterialDataTableBasicState<T>
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
+        mainAxisAlignment: _toMainAlign(widget.paginationAlign),
         children: controls
             .map(
               (e) => Padding(
@@ -813,12 +828,117 @@ class _RzMaterialDataTableBasicState<T>
 
   @override
   Widget build(BuildContext context) {
-    int totalPages = _currentRowsPerPage == 0
+    final totalPages = _currentRowsPerPage == 0
         ? 1
         : (filtered.length / _currentRowsPerPage).ceil();
-    int columnCount = _getColumnCount();
+    final columns = _buildColumns();
 
-    Widget tableContent = columnCount == 0
+    Widget table = DataTable(
+      headingRowColor: WidgetStatePropertyAll(widget.headerColor),
+      headingRowHeight: widget.showHeader ? 56 : 0,
+      sortColumnIndex: sortCol == -1 ? null : sortCol,
+      sortAscending: asc,
+      border: TableBorder(
+        horizontalInside: BorderSide(
+          color: widget.borderColor.withValues(alpha: 0.5),
+        ),
+      ),
+      columns: columns,
+      rows: displayed.asMap().entries.map((entry) {
+        final rowIndex = entry.key;
+        final globalIndex = page * _currentRowsPerPage + rowIndex;
+        final item = entry.value;
+        final isOdd = globalIndex % 2 == 1;
+        final rowData = widget.rowBuilder != null
+            ? widget.rowBuilder!(item)
+            : [];
+        List<DataCell> cells = List.generate(rowData.length, (colIndex) {
+          final isEditing = editingRow == rowIndex && editingCol == colIndex;
+          final currentValue = rowData[colIndex];
+          final canEdit = widget.enableDoubleClickEdit && _isEditable(colIndex);
+          Widget cellContent;
+          if (isEditing) {
+            if (widget.cellEditorBuilder != null) {
+              cellContent = widget.cellEditorBuilder!(
+                item,
+                colIndex,
+                currentValue,
+                (newVal) {
+                  setState(() {
+                    editingRow = null;
+                    editingCol = null;
+                  });
+                  widget.onCellChanged?.call(item, colIndex, newVal);
+                },
+                () {
+                  setState(() {
+                    editingRow = null;
+                    editingCol = null;
+                  });
+                },
+              );
+            } else {
+              cellContent = SizedBox(
+                width:
+                    widget.columnWidths != null &&
+                        colIndex < widget.columnWidths!.length
+                    ? widget.columnWidths![colIndex]
+                    : 150,
+                child: TextField(
+                  controller: _editController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (v) {
+                    setState(() {
+                      editingRow = null;
+                      editingCol = null;
+                    });
+                    widget.onCellChanged?.call(item, colIndex, v);
+                  },
+                ),
+              );
+            }
+          } else {
+            cellContent = _buildCellItem(currentValue);
+            if (canEdit) {
+              cellContent = GestureDetector(
+                onDoubleTap: () {
+                  setState(() {
+                    editingRow = rowIndex;
+                    editingCol = colIndex;
+                    _editController.text = currentValue is String
+                        ? currentValue
+                        : currentValue is Widget
+                        ? ''
+                        : currentValue.toString();
+                  });
+                },
+                child: cellContent,
+              );
+            }
+          }
+          return DataCell(
+            _wrapSizedAligned(cellContent, colIndex),
+            onTap: widget.onRowTap != null
+                ? () => widget.onRowTap!(item)
+                : null,
+          );
+        });
+        return DataRow(
+          color: widget.enableOddEven
+              ? WidgetStatePropertyAll(
+                  isOdd ? widget.evenRowColor : widget.oddRowColor,
+                )
+              : null,
+          cells: cells,
+        );
+      }).toList(),
+    );
+
+    Widget content = columns.isEmpty
         ? (widget.emptyWidget ??
               const Padding(
                 padding: EdgeInsets.all(24),
@@ -838,7 +958,7 @@ class _RzMaterialDataTableBasicState<T>
                       constraints: BoxConstraints(
                         minWidth: constraints.maxWidth,
                       ),
-                      child: _buildTable(),
+                      child: table,
                     ),
                   ),
                 ),
@@ -855,11 +975,11 @@ class _RzMaterialDataTableBasicState<T>
               thumbVisibility: widget.showScrollbar,
               child: SingleChildScrollView(
                 controller: _vScroll,
-                child: tableContent,
+                child: content,
               ),
             ),
           )
-        : tableContent;
+        : content;
 
     return SizedBox(
       width: double.infinity,
@@ -969,3 +1089,147 @@ class _RzMaterialDataTableBasicState<T>
     );
   }
 }
+
+/*
+Usages:
+RzMaterialDataTableBasic<UserModel>(
+    // 1. DATA MODEL
+    items: users,
+    searchableBuilder: (u) => '${u.name} ${u.email} ${u.role}',
+    onRowTap: (u) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Clicked ${u.name}'))),
+
+    // 2. HEADER - String or Widget (checkbox, textfield etc)
+    headers: [
+        StatefulBuilder(builder: (c, set) => Checkbox(value: selectAll, onChanged: (v) { setState(() { selectAll = v!; for (var u in users) u.selected = selectAll; }); })),
+        'Name',
+        'Email',
+        'Role',
+        'Action',
+    ],
+    headerAlign: RzMaterialDataTableAlign.center,
+    headerFontSize: 14,
+    headerFontWeight: FontWeight.w700,
+    headerColor: const Color(0xFFF1F3F9),
+
+    // 3. COLUMN SIZE
+    columnWidths: [60, 140, 240, 110, 120],
+    columnMinWidths: [50, 100, 150, 80, 80],
+    columnAligns: [
+        RzMaterialDataTableAlign.center, // checkbox
+        RzMaterialDataTableAlign.left, // name
+        RzMaterialDataTableAlign.left, // email
+        RzMaterialDataTableAlign.center, // role
+        RzMaterialDataTableAlign.center, // action
+    ],
+    align: RzMaterialDataTableAlign.center, // default center
+    cellFontSize: 13,
+    cellFontWeight: FontWeight.w400,
+
+    // 4. ROW - text or widget
+    rowBuilder: (u) => [
+        Checkbox(value: u.selected, onChanged: (v) => setState(() => u.selected = v!)),
+        u.name,
+        u.email,
+        Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(color: u.role == 'Admin'? Colors.blue.shade100 : Colors.grey.shade200, borderRadius: BorderRadius.circular(12)),
+            child: Text(u.role, style: const TextStyle(fontSize: 12)),
+        ),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(icon: const Icon(Icons.edit, size: 18), onPressed: () {}),
+            IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), onPressed: () => setState(() => users.remove(u))),
+        ]),
+    ],
+
+    // 5. TABLE HEADER / FOOTER - String or Widget + size + weight + align
+    tableHeader: 'User Management Table',
+    tableHeaderAlign: RzMaterialDataTableAlign.left,
+    tableHeaderFontSize: 22,
+    tableHeaderFontWeight: FontWeight.w800,
+    // tableHeader: Row(children: [Icon(Icons.people), SizedBox(width:8), Text('Users')]), // widget also
+
+    tableFooter: 'Total ${users.length} users found',
+    tableFooterAlign: RzMaterialDataTableAlign.right,
+    tableFooterFontSize: 13,
+    tableFooterFontWeight: FontWeight.w500,
+
+    // 6. ODD EVEN + HEADER NULL + FOOTER NULL
+    showHeader: true,
+    enableOddEven: true,
+    oddRowColor: Colors.white,
+    evenRowColor: const Color(0xFFF9FAFB),
+
+    // 7. SCROLLBAR ON/OFF - if off show full content
+    showScrollbar: true,
+    showHorizontalScrollbar: true,
+    maxHeight: 420,
+    borderRadius: 12,
+    borderColor: const Color(0xFFE0E0E0),
+
+    // 8. SEARCH + SORT
+    showSearch: true,
+    enableSorting: true,
+    sortableColumns: [false, true, true, true, false], // checkbox & action not sortable
+    sortValueBuilder: (u, col) => [u.selected.toString(), u.name, u.email, u.role, ''][col],
+
+    // 9. DOUBLE CLICK EDITABLE
+    enableDoubleClickEdit: true,
+    editableColumns: [false, true, true, true, false],
+    onCellChanged: (item, colIndex, newValue) {
+        setState(() {
+            if (colIndex == 1) item.name = newValue;
+            if (colIndex == 2) item.email = newValue;
+            if (colIndex == 3) item.role = newValue;
+        });
+    },
+    cellEditorBuilder: (item, colIndex, currentValue, onSave, onCancel) {
+        if (colIndex == 3) {
+            return DropdownButton<String>(
+                value: ['Admin', 'User', 'Guest'].contains(currentValue.toString())? currentValue.toString() : 'User',
+                items: ['Admin', 'User', 'Guest'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                onChanged: (v) { if (v!= null) onSave(v); },
+            );
+        }
+        return SizedBox(
+            width: 180,
+            child: TextField(
+                autofocus: true,
+                controller: TextEditingController(text: currentValue is String? currentValue : ''),
+                decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+                onSubmitted: onSave,
+            ),
+        );
+    },
+
+    // 10. PAGINATION - Full Feature + Customizable
+    showPagination: true,
+    rowsPerPage: 10,
+    rowsPerPageOptions: [5, 10, 25, 50, 100],
+
+    // pagination align - uses RzMaterialDataTableBasicAlign
+    paginationMode: RzMaterialDataTableBasicPaginationMode.full, // full, minimal, compact
+    paginationAlign: RzMaterialDataTableBasicAlign.center, // left, center, right
+    showFirstButton: true,
+    showLastButton: true,
+    showPrevNext: true,
+    showPageNumbers: true,
+    showMidRange: true,
+    midRangeThreshold: 30, // 30, 40 etc - if totalPages >=30 show mid logic (page/2-1, page/2, page/2+1)
+
+    // pagination button style
+    paginationFirstText: 'First',
+    paginationPrevText: 'Previous',
+    paginationNextText: 'Next',
+    paginationLastText: 'Last',
+
+    paginationButtonFontSize: 13,
+    paginationButtonFontWeight: FontWeight.w600,
+    paginationButtonTextColor: Colors.black87,
+    paginationButtonActiveColor: Colors.blue,
+    paginationButtonActiveTextColor: Colors.white,
+    paginationButtonBorderColor: Colors.grey.shade300,
+    paginationButtonBorderRadius: 8,
+    paginationButtonPaddingH: 12,
+    paginationButtonPaddingV: 7,
+),
+*/
