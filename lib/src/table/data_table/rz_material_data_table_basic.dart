@@ -4,7 +4,7 @@ enum RzMaterialDataTableBasicAlign { left, center, right }
 
 enum RzMaterialDataTableBasicPaginationMode { full, minimal, compact }
 
-class RzMaterialDataTableBasic<T> extends StatefulWidget {
+class RzMaterialDataTableBasicDemo<T> extends StatefulWidget {
   final List<dynamic>? headers;
   final List<T> items;
   final List<dynamic> Function(T item)? rowBuilder;
@@ -62,18 +62,17 @@ class RzMaterialDataTableBasic<T> extends StatefulWidget {
   final List<bool>? editableColumns;
   final void Function(T item, int columnIndex, dynamic newValue)? onCellChanged;
   final Widget Function(
-      T item,
-      int columnIndex,
-      dynamic currentValue,
-      void Function(dynamic newValue) onSave,
-      VoidCallback onCancel,
-      )?
+    T item,
+    int columnIndex,
+    dynamic currentValue,
+    void Function(dynamic newValue) onSave,
+    VoidCallback onCancel,
+  )?
   cellEditorBuilder;
 
   final bool enableSorting;
   final List<bool>? sortableColumns;
 
-  // PAGINATION ADVANCE
   final RzMaterialDataTableBasicPaginationMode paginationMode;
   final RzMaterialDataTableBasicAlign paginationAlign;
   final bool showFirstButton;
@@ -92,13 +91,12 @@ class RzMaterialDataTableBasic<T> extends StatefulWidget {
   final double paginationButtonPaddingH;
   final double paginationButtonPaddingV;
 
-  // NEW: custom label text
   final String paginationFirstText;
   final String paginationPrevText;
   final String paginationNextText;
   final String paginationLastText;
 
-  const RzMaterialDataTableBasic({
+  const RzMaterialDataTableBasicDemo({
     super.key,
     this.headers,
     this.columns,
@@ -174,11 +172,12 @@ class RzMaterialDataTableBasic<T> extends StatefulWidget {
   });
 
   @override
-  State<RzMaterialDataTableBasic<T>> createState() =>
+  State<RzMaterialDataTableBasicDemo<T>> createState() =>
       _RzMaterialDataTableBasicState<T>();
 }
 
-class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T>> {
+class _RzMaterialDataTableBasicState<T>
+    extends State<RzMaterialDataTableBasicDemo<T>> {
   late List<T> filtered;
   late List<T> displayed;
   String query = '';
@@ -197,7 +196,32 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
     super.initState();
     _currentRowsPerPage = widget.rowsPerPage;
     filtered = List.from(widget.items);
+    displayed = [];
     _paginate();
+  }
+
+  @override
+  void didUpdateWidget(covariant RzMaterialDataTableBasicDemo<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.items != widget.items) {
+      filtered = List.from(widget.items);
+      if (query.isNotEmpty) {
+        filtered = widget.items
+            .where(
+              (e) => widget
+                  .searchableBuilder(e)
+                  .toLowerCase()
+                  .contains(query.toLowerCase()),
+            )
+            .toList();
+      }
+      if (sortCol != -1) {
+        _applySortWithoutSetState();
+      }
+      page = 0;
+      _paginate();
+      setState(() {});
+    }
   }
 
   @override
@@ -214,13 +238,13 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
       filtered = q.isEmpty
           ? List.from(widget.items)
           : widget.items
-          .where(
-            (e) => widget
-            .searchableBuilder(e)
-            .toLowerCase()
-            .contains(q.toLowerCase()),
-      )
-          .toList();
+                .where(
+                  (e) => widget
+                      .searchableBuilder(e)
+                      .toLowerCase()
+                      .contains(q.toLowerCase()),
+                )
+                .toList();
       page = 0;
       _paginate();
     });
@@ -228,10 +252,42 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
 
   bool _isSortable(int col) {
     if (!widget.enableSorting) return false;
-    if (widget.sortableColumns != null && col < widget.sortableColumns!.length) {
-      return widget.sortableColumns![col];
+    if (widget.sortableColumns != null) {
+      if (col < widget.sortableColumns!.length) {
+        return widget.sortableColumns![col];
+      } else {
+        return false;
+      }
     }
     return true;
+  }
+
+  void _applySortWithoutSetState() {
+    if (sortCol < 0) return;
+    if (!_isSortable(sortCol)) return;
+    if (widget.sortValueBuilder != null) {
+      filtered.sort((a, b) {
+        final av = widget.sortValueBuilder!(a, sortCol);
+        final bv = widget.sortValueBuilder!(b, sortCol);
+        return asc ? Comparable.compare(av, bv) : Comparable.compare(bv, av);
+      });
+    } else if (widget.rowBuilder != null) {
+      filtered.sort((a, b) {
+        final av = widget.rowBuilder!(a)[sortCol];
+        final bv = widget.rowBuilder!(b)[sortCol];
+        String sa = av is String
+            ? av
+            : av is Widget
+            ? ''
+            : av.toString();
+        String sb = bv is String
+            ? bv
+            : bv is Widget
+            ? ''
+            : bv.toString();
+        return asc ? sa.compareTo(sb) : sb.compareTo(sa);
+      });
+    }
   }
 
   void _sort(int col) {
@@ -243,41 +299,28 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
         sortCol = col;
         asc = true;
       }
-      if (widget.sortValueBuilder != null) {
-        filtered.sort((a, b) {
-          final av = widget.sortValueBuilder!(a, col);
-          final bv = widget.sortValueBuilder!(b, col);
-          return asc ? Comparable.compare(av, bv) : Comparable.compare(bv, av);
-        });
-      } else if (widget.rowBuilder != null) {
-        filtered.sort((a, b) {
-          final av = widget.rowBuilder!(a)[col];
-          final bv = widget.rowBuilder!(b)[col];
-          String sa = av is String
-              ? av
-              : av is Widget
-              ? ''
-              : av.toString();
-          String sb = bv is String
-              ? bv
-              : bv is Widget
-              ? ''
-              : bv.toString();
-          return asc ? sa.compareTo(sb) : sb.compareTo(sa);
-        });
-      }
+      _applySortWithoutSetState();
       _paginate();
     });
   }
 
   void _paginate() {
-    if (!widget.showScrollbar || !widget.showPagination) {
-      displayed = filtered;
+    if (!widget.showPagination) {
+      displayed = List.from(filtered);
+      return;
+    }
+    if (filtered.isEmpty) {
+      displayed = [];
       return;
     }
     final start = page * _currentRowsPerPage;
+    if (start >= filtered.length) {
+      page = 0;
+      displayed = filtered.take(_currentRowsPerPage).toList();
+      return;
+    }
     final end = (start + _currentRowsPerPage).clamp(0, filtered.length);
-    displayed = filtered.isEmpty ? [] : filtered.sublist(start, end);
+    displayed = filtered.sublist(start, end);
   }
 
   void _changeRowsPerPage(int? v) {
@@ -321,25 +364,25 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
 
   RzMaterialDataTableBasicAlign _colAlign(int i) =>
       widget.columnAligns != null && i < widget.columnAligns!.length
-          ? widget.columnAligns![i]
-          : widget.align;
+      ? widget.columnAligns![i]
+      : widget.align;
 
   RzMaterialDataTableBasicAlign _headerColAlign(int i) =>
       widget.columnAligns != null && i < widget.columnAligns!.length
-          ? widget.columnAligns![i]
-          : widget.headerAlign;
+      ? widget.columnAligns![i]
+      : widget.headerAlign;
 
   bool _isEditable(int col) =>
       widget.editableColumns != null && col < widget.editableColumns!.length
-          ? widget.editableColumns![col]
-          : true;
+      ? widget.editableColumns![col]
+      : true;
 
   Widget _wrapSizedAligned(Widget child, int index, {bool isHeader = false}) {
     final w = widget.columnWidths != null && index < widget.columnWidths!.length
         ? widget.columnWidths![index]
         : null;
     final minW =
-    widget.columnMinWidths != null && index < widget.columnMinWidths!.length
+        widget.columnMinWidths != null && index < widget.columnMinWidths!.length
         ? widget.columnMinWidths![index]
         : null;
     final align = isHeader ? _headerColAlign(index) : _colAlign(index);
@@ -357,10 +400,10 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
   Widget _buildHeaderItem(dynamic item) {
     TextStyle style =
         widget.headerTextStyle ??
-            TextStyle(
-              fontWeight: widget.headerFontWeight,
-              fontSize: widget.headerFontSize ?? 14,
-            );
+        TextStyle(
+          fontWeight: widget.headerFontWeight,
+          fontSize: widget.headerFontSize ?? 14,
+        );
     if (item is Widget) return item;
     return Text(item.toString(), style: style);
   }
@@ -368,21 +411,21 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
   Widget _buildCellItem(dynamic item) {
     TextStyle style =
         widget.cellTextStyle ??
-            TextStyle(
-              fontWeight: widget.cellFontWeight,
-              fontSize: widget.cellFontSize ?? 13,
-            );
+        TextStyle(
+          fontWeight: widget.cellFontWeight,
+          fontSize: widget.cellFontSize ?? 13,
+        );
     if (item is Widget) return item;
     return Text(item.toString(), style: style, overflow: TextOverflow.ellipsis);
   }
 
   Widget _buildDynamicText(
-      dynamic data, {
-        required RzMaterialDataTableBasicAlign align,
-        required double? fontSize,
-        required FontWeight fontWeight,
-        TextStyle? customStyle,
-      }) {
+    dynamic data, {
+    required RzMaterialDataTableBasicAlign align,
+    required double? fontSize,
+    required FontWeight fontWeight,
+    TextStyle? customStyle,
+  }) {
     if (data == null) return const SizedBox();
     if (data is Widget) return Align(alignment: _toAlign(align), child: data);
     return Align(
@@ -390,7 +433,7 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
       child: Text(
         data.toString(),
         style:
-        customStyle ??
+            customStyle ??
             TextStyle(fontSize: fontSize, fontWeight: fontWeight),
       ),
     );
@@ -403,11 +446,20 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
         final sortable = _isSortable(i);
         return DataColumn(
           label: _wrapSizedAligned(
-            MouseRegion(
-              cursor: sortable
-                  ? SystemMouseCursors.click
-                  : SystemMouseCursors.basic,
-              child: _buildHeaderItem(widget.headers![i]),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHeaderItem(widget.headers![i]),
+                if (sortable) const SizedBox(width: 4),
+                if (sortable)
+                  Icon(
+                    sortCol == i
+                        ? (asc ? Icons.arrow_upward : Icons.arrow_downward)
+                        : Icons.unfold_more,
+                    size: 14,
+                    color: sortCol == i ? Colors.black87 : Colors.black38,
+                  ),
+              ],
             ),
             i,
             isHeader: true,
@@ -421,7 +473,24 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
       return List.generate(count, (i) {
         final sortable = _isSortable(i);
         return DataColumn(
-          label: _wrapSizedAligned(Text('Col ${i + 1}'), i, isHeader: true),
+          label: _wrapSizedAligned(
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Col ${i + 1}'),
+                if (sortable) const SizedBox(width: 4),
+                if (sortable)
+                  Icon(
+                    sortCol == i
+                        ? (asc ? Icons.arrow_upward : Icons.arrow_downward)
+                        : Icons.unfold_more,
+                    size: 14,
+                  ),
+              ],
+            ),
+            i,
+            isHeader: true,
+          ),
           onSort: sortable ? (idx, _) => _sort(idx) : null,
         );
       });
@@ -432,6 +501,7 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
   List<Widget> _buildPageNumbers(int totalPages) {
     List<Widget> widgets = [];
     int current = page;
+
     Widget pageBtn(int index) {
       bool active = index == current;
       return InkWell(
@@ -474,7 +544,7 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
     }
 
     Widget dots() => Padding(
-      padding: EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Text(
         '...',
         style: TextStyle(
@@ -483,74 +553,139 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
         ),
       ),
     );
+
     if (totalPages <= 7 ||
-        widget.paginationMode == RzMaterialDataTableBasicPaginationMode.compact) {
+        widget.paginationMode ==
+            RzMaterialDataTableBasicPaginationMode.compact) {
       for (int i = 0; i < totalPages; i++) {
         widgets.add(pageBtn(i));
       }
     } else {
-      widgets.add(pageBtn(0));
-      widgets.add(pageBtn(1));
-      widgets.add(pageBtn(2));
-      if (current > 4) widgets.add(dots());
+      Set<int> added = {};
+      List<Widget> result = [];
+
+      for (int i = 0; i < 3 && i < totalPages; i++) {
+        result.add(pageBtn(i));
+        added.add(i);
+      }
+
+      if (current > 4) result.add(dots());
+
       if (widget.showMidRange && totalPages >= widget.midRangeThreshold) {
-        int mid = totalPages ~/ 2;
         if (current <= 4) {
-          widgets.add(pageBtn(3));
-          widgets.add(pageBtn(4));
+          if (!added.contains(3)) {
+            result.add(pageBtn(3));
+            added.add(3);
+          }
+          if (!added.contains(4)) {
+            result.add(pageBtn(4));
+            added.add(4);
+          }
         } else if (current >= totalPages - 5) {
-          widgets.add(pageBtn(totalPages - 5));
-          widgets.add(pageBtn(totalPages - 4));
+          if (!added.contains(totalPages - 5)) {
+            result.add(pageBtn(totalPages - 5));
+            added.add(totalPages - 5);
+          }
+          if (!added.contains(totalPages - 4)) {
+            result.add(pageBtn(totalPages - 4));
+            added.add(totalPages - 4);
+          }
         } else {
-          if ((current - 1) > 2 && (current - 1) < totalPages - 3) {
-            widgets.add(pageBtn(current - 1));
+          if ((current - 1) > 2 &&
+              (current - 1) < totalPages - 3 &&
+              !added.contains(current - 1)) {
+            result.add(pageBtn(current - 1));
+            added.add(current - 1);
           }
-          if (current > 2 && current < totalPages - 3) {
-            widgets.add(pageBtn(current));
+          if (current > 2 &&
+              current < totalPages - 3 &&
+              !added.contains(current)) {
+            result.add(pageBtn(current));
+            added.add(current);
           }
-          if ((current + 1) > 2 && (current + 1) < totalPages - 3) {
-            widgets.add(pageBtn(current + 1));
+          if ((current + 1) > 2 &&
+              (current + 1) < totalPages - 3 &&
+              !added.contains(current + 1)) {
+            result.add(pageBtn(current + 1));
+            added.add(current + 1);
           }
-          if ((mid - 1) != current &&
+        }
+
+        int mid = totalPages ~/ 2;
+        if (mid > 2 && mid < totalPages - 3) {
+          if (mid - 1 > 2 &&
+              mid - 1 < totalPages - 3 &&
+              !added.contains(mid - 1) &&
+              (mid - 1) != current &&
               (mid - 1) != current - 1 &&
-              (mid - 1) != current + 1 &&
-              mid - 1 > 2 &&
-              mid - 1 < totalPages - 3) {
-            widgets.add(pageBtn(mid - 1));
+              (mid - 1) != current + 1) {
+            result.add(pageBtn(mid - 1));
+            added.add(mid - 1);
           }
-          if (mid != current &&
+          if (!added.contains(mid) &&
+              mid != current &&
               mid != current - 1 &&
-              mid != current + 1 &&
-              mid > 2 &&
-              mid < totalPages - 3) {
-            widgets.add(pageBtn(mid));
+              mid != current + 1) {
+            result.add(pageBtn(mid));
+            added.add(mid);
           }
-          if ((mid + 1) != current &&
+          if (mid + 1 > 2 &&
+              mid + 1 < totalPages - 3 &&
+              !added.contains(mid + 1) &&
+              (mid + 1) != current &&
               (mid + 1) != current - 1 &&
-              (mid + 1) != current + 1 &&
-              mid + 1 > 2 &&
-              mid + 1 < totalPages - 3) {
-            widgets.add(pageBtn(mid + 1));
+              (mid + 1) != current + 1) {
+            result.add(pageBtn(mid + 1));
+            added.add(mid + 1);
           }
         }
       } else {
         if (current > 3 && current < totalPages - 4) {
-          widgets.add(pageBtn(current - 1));
-          widgets.add(pageBtn(current));
-          widgets.add(pageBtn(current + 1));
+          if (!added.contains(current - 1)) {
+            result.add(pageBtn(current - 1));
+            added.add(current - 1);
+          }
+          if (!added.contains(current)) {
+            result.add(pageBtn(current));
+            added.add(current);
+          }
+          if (!added.contains(current + 1)) {
+            result.add(pageBtn(current + 1));
+            added.add(current + 1);
+          }
         } else if (current <= 3) {
-          widgets.add(pageBtn(3));
-          widgets.add(pageBtn(4));
+          if (!added.contains(3)) {
+            result.add(pageBtn(3));
+            added.add(3);
+          }
+          if (!added.contains(4)) {
+            result.add(pageBtn(4));
+            added.add(4);
+          }
         } else {
-          widgets.add(pageBtn(totalPages - 5));
-          widgets.add(pageBtn(totalPages - 4));
+          if (!added.contains(totalPages - 5)) {
+            result.add(pageBtn(totalPages - 5));
+            added.add(totalPages - 5);
+          }
+          if (!added.contains(totalPages - 4)) {
+            result.add(pageBtn(totalPages - 4));
+            added.add(totalPages - 4);
+          }
         }
       }
-      if (current < totalPages - 5) widgets.add(dots());
-      widgets.add(pageBtn(totalPages - 3));
-      widgets.add(pageBtn(totalPages - 2));
-      widgets.add(pageBtn(totalPages - 1));
+
+      if (current < totalPages - 5) result.add(dots());
+
+      for (int i = totalPages - 3; i < totalPages; i++) {
+        if (i >= 0 && i < totalPages && !added.contains(i)) {
+          result.add(pageBtn(i));
+          added.add(i);
+        }
+      }
+
+      widgets = result;
     }
+
     return widgets;
   }
 
@@ -585,7 +720,8 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
 
   Widget _buildPagination(int totalPages) {
     if (totalPages <= 1) return const SizedBox();
-    if (widget.paginationMode == RzMaterialDataTableBasicPaginationMode.minimal) {
+    if (widget.paginationMode ==
+        RzMaterialDataTableBasicPaginationMode.minimal) {
       return Row(
         mainAxisAlignment: _toMainAlign(widget.paginationAlign),
         children: [
@@ -594,15 +730,15 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
               widget.paginationPrevText,
               page > 0
                   ? () {
-                setState(() {
-                  page--;
-                  _paginate();
-                });
-              }
+                      setState(() {
+                        page--;
+                        _paginate();
+                      });
+                    }
                   : null,
             ),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
               '${page + 1} / $totalPages',
               style: TextStyle(
@@ -616,11 +752,11 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
               widget.paginationNextText,
               page < totalPages - 1
                   ? () {
-                setState(() {
-                  page++;
-                  _paginate();
-                });
-              }
+                      setState(() {
+                        page++;
+                        _paginate();
+                      });
+                    }
                   : null,
             ),
         ],
@@ -641,11 +777,11 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
           widget.paginationPrevText,
           page > 0
               ? () {
-            setState(() {
-              page--;
-              _paginate();
-            });
-          }
+                  setState(() {
+                    page--;
+                    _paginate();
+                  });
+                }
               : null,
         ),
       );
@@ -657,11 +793,11 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
           widget.paginationNextText,
           page < totalPages - 1
               ? () {
-            setState(() {
-              page++;
-              _paginate();
-            });
-          }
+                  setState(() {
+                    page++;
+                    _paginate();
+                  });
+                }
               : null,
         ),
       );
@@ -681,10 +817,10 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
         children: controls
             .map(
               (e) => Padding(
-            padding: EdgeInsets.symmetric(horizontal: 2),
-            child: e,
-          ),
-        )
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: e,
+              ),
+            )
             .toList(),
       ),
     );
@@ -696,7 +832,6 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
         ? 1
         : (filtered.length / _currentRowsPerPage).ceil();
     final columns = _buildColumns();
-    final isFullContent = !widget.showScrollbar;
 
     Widget table = DataTable(
       headingRowColor: WidgetStatePropertyAll(widget.headerColor),
@@ -711,9 +846,7 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
       columns: columns,
       rows: displayed.asMap().entries.map((entry) {
         final rowIndex = entry.key;
-        final globalIndex = isFullContent
-            ? rowIndex
-            : page * _currentRowsPerPage + rowIndex;
+        final globalIndex = page * _currentRowsPerPage + rowIndex;
         final item = entry.value;
         final isOdd = globalIndex % 2 == 1;
         final rowData = widget.rowBuilder != null
@@ -730,14 +863,14 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
                 item,
                 colIndex,
                 currentValue,
-                    (newVal) {
+                (newVal) {
                   setState(() {
                     editingRow = null;
                     editingCol = null;
                   });
                   widget.onCellChanged?.call(item, colIndex, newVal);
                 },
-                    () {
+                () {
                   setState(() {
                     editingRow = null;
                     editingCol = null;
@@ -747,14 +880,14 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
             } else {
               cellContent = SizedBox(
                 width:
-                widget.columnWidths != null &&
-                    colIndex < widget.columnWidths!.length
+                    widget.columnWidths != null &&
+                        colIndex < widget.columnWidths!.length
                     ? widget.columnWidths![colIndex]
                     : 150,
                 child: TextField(
                   controller: _editController,
                   autofocus: true,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     isDense: true,
                     border: OutlineInputBorder(),
                   ),
@@ -797,8 +930,8 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
         return DataRow(
           color: widget.enableOddEven
               ? WidgetStatePropertyAll(
-            isOdd ? widget.evenRowColor : widget.oddRowColor,
-          )
+                  isOdd ? widget.evenRowColor : widget.oddRowColor,
+                )
               : null,
           cells: cells,
         );
@@ -807,140 +940,156 @@ class _RzMaterialDataTableBasicState<T> extends State<RzMaterialDataTableBasic<T
 
     Widget content = columns.isEmpty
         ? (widget.emptyWidget ??
-        const Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('No data'),
-        ))
-        : isFullContent
-        ? SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      controller: _hScroll,
-      child: table,
-    )
-        : Scrollbar(
-      controller: _vScroll,
-      thumbVisibility: widget.showScrollbar,
-      child: Scrollbar(
-        controller: _hScroll,
-        thumbVisibility: widget.showHorizontalScrollbar,
-        notificationPredicate: (n) => n.depth == 1,
-        child: SingleChildScrollView(
-          controller: _vScroll,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            controller: _hScroll,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: widget.maxHeight ?? 400,
-              ),
-              child: table,
-            ),
-          ),
-        ),
-      ),
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (widget.tableHeader != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildDynamicText(
-              widget.tableHeader,
-              align: widget.tableHeaderAlign,
-              fontSize: widget.tableHeaderFontSize,
-              fontWeight: widget.tableHeaderFontWeight,
-              customStyle: widget.tableHeaderTextStyle,
-            ),
-          ),
-        if (widget.showSearch)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: TextField(
-              onChanged: _filter,
-              decoration: InputDecoration(
-                hintText: 'Search...',
-                prefixIcon: Icon(Icons.search, size: 20),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(widget.borderRadius),
-                ),
-              ),
-            ),
-          ),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(widget.borderRadius),
-          child: Material(
-            shape: RoundedRectangleBorder(
-              side: BorderSide(color: widget.borderColor),
-              borderRadius: BorderRadius.circular(widget.borderRadius),
-            ),
-            child: content,
-          ),
-        ),
-        if (widget.tableFooter != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: _buildDynamicText(
-              widget.tableFooter,
-              align: widget.tableFooterAlign,
-              fontSize: widget.tableFooterFontSize,
-              fontWeight: widget.tableFooterFontWeight,
-              customStyle: widget.tableFooterTextStyle,
-            ),
-          ),
-        if (widget.footer != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: widget.footer!,
-          ),
-        if (widget.showPagination && widget.footer == null && !isFullContent)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.paginationMode !=
-                    RzMaterialDataTableBasicPaginationMode.minimal)
-                  Row(
-                    children: [
-                      Text('Rows per page:'),
-                      SizedBox(width: 8),
-                      DropdownButton<int>(
-                        value:
-                        widget.rowsPerPageOptions.contains(
-                          _currentRowsPerPage,
-                        )
-                            ? _currentRowsPerPage
-                            : widget.rowsPerPageOptions.first,
-                        items: widget.rowsPerPageOptions
-                            .map(
-                              (e) =>
-                              DropdownMenuItem(value: e, child: Text('$e')),
-                        )
-                            .toList(),
-                        onChanged: _changeRowsPerPage,
-                        isDense: true,
-                        underline: SizedBox(),
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('No data'),
+              ))
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              return SizedBox(
+                width: double.infinity,
+                child: Scrollbar(
+                  controller: _hScroll,
+                  thumbVisibility: widget.showHorizontalScrollbar,
+                  child: SingleChildScrollView(
+                    controller: _hScroll,
+                    scrollDirection: Axis.horizontal,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minWidth: constraints.maxWidth,
                       ),
-                      SizedBox(width: 16),
-                      Text(
-                        '${filtered.isEmpty ? 0 : page * _currentRowsPerPage + 1}-${(page * _currentRowsPerPage + displayed.length).clamp(0, filtered.length)} of ${filtered.length}',
-                      ),
-                    ],
+                      child: table,
+                    ),
                   ),
-                SizedBox(height: 8),
-                Align(
-                  alignment: _toAlign(widget.paginationAlign),
-                  child: _buildPagination(totalPages),
                 ),
-              ],
+              );
+            },
+          );
+
+    Widget verticalWrapper = widget.maxHeight != null
+        ? SizedBox(
+            height: widget.maxHeight,
+            width: double.infinity,
+            child: Scrollbar(
+              controller: _vScroll,
+              thumbVisibility: widget.showScrollbar,
+              child: SingleChildScrollView(
+                controller: _vScroll,
+                child: content,
+              ),
+            ),
+          )
+        : content;
+
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.tableHeader != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildDynamicText(
+                widget.tableHeader,
+                align: widget.tableHeaderAlign,
+                fontSize: widget.tableHeaderFontSize,
+                fontWeight: widget.tableHeaderFontWeight,
+                customStyle: widget.tableHeaderTextStyle,
+              ),
+            ),
+          if (widget.showSearch)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TextField(
+                onChanged: _filter,
+                decoration: InputDecoration(
+                  hintText: 'Search...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(widget.borderRadius),
+                  ),
+                ),
+              ),
+            ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                border: Border.all(color: widget.borderColor),
+                borderRadius: BorderRadius.circular(widget.borderRadius),
+                color: Colors.white,
+              ),
+              child: Material(color: Colors.white, child: verticalWrapper),
             ),
           ),
-      ],
+          if (widget.tableFooter != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _buildDynamicText(
+                widget.tableFooter,
+                align: widget.tableFooterAlign,
+                fontSize: widget.tableFooterFontSize,
+                fontWeight: widget.tableFooterFontWeight,
+                customStyle: widget.tableFooterTextStyle,
+              ),
+            ),
+          if (widget.footer != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: widget.footer!,
+            ),
+          if (widget.showPagination && widget.footer == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (widget.paginationMode !=
+                      RzMaterialDataTableBasicPaginationMode.minimal)
+                    Row(
+                      children: [
+                        const Text('Rows per page:'),
+                        const SizedBox(width: 8),
+                        DropdownButton<int>(
+                          value:
+                              widget.rowsPerPageOptions.contains(
+                                _currentRowsPerPage,
+                              )
+                              ? _currentRowsPerPage
+                              : widget.rowsPerPageOptions.first,
+                          items: widget.rowsPerPageOptions
+                              .map(
+                                (e) => DropdownMenuItem(
+                                  value: e,
+                                  child: Text('$e'),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _changeRowsPerPage,
+                          isDense: true,
+                          underline: const SizedBox(),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          '${filtered.isEmpty ? 0 : page * _currentRowsPerPage + 1}-${(page * _currentRowsPerPage + displayed.length).clamp(0, filtered.length)} of ${filtered.length}',
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: _toAlign(widget.paginationAlign),
+                    child: _buildPagination(totalPages),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
+
 /*
 Usages:
 RzMaterialDataTableBasic<UserModel>(

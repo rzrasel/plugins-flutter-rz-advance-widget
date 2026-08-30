@@ -29,6 +29,9 @@ export 'src/image/rz_rounded_image.dart';
 export 'src/loader/rz_animation_loader_widget.dart';
 export 'src/loader/rz_full_screen_loader.dart';
 
+// Pagination
+export 'src/pagination/rz_pagination_basic.dart';
+
 // Shimmer
 export 'src/shimmer/rz_shimmer.dart';
 export 'src/shimmer_effect/rz_shimmer_effect.dart';
