@@ -4,7 +4,7 @@ enum RzMaterialDataTableBasicAlign { left, center, right }
 
 enum RzMaterialDataTableBasicPaginationMode { full, minimal, compact }
 
-class RzMaterialDataTableBasicDemo<T> extends StatefulWidget {
+class RzMaterialDataTableBasic<T> extends StatefulWidget {
   final List<dynamic>? headers;
   final List<T> items;
   final List<dynamic> Function(T item)? rowBuilder;
@@ -96,7 +96,7 @@ class RzMaterialDataTableBasicDemo<T> extends StatefulWidget {
   final String paginationNextText;
   final String paginationLastText;
 
-  const RzMaterialDataTableBasicDemo({
+  const RzMaterialDataTableBasic({
     super.key,
     this.headers,
     this.columns,
@@ -172,12 +172,12 @@ class RzMaterialDataTableBasicDemo<T> extends StatefulWidget {
   });
 
   @override
-  State<RzMaterialDataTableBasicDemo<T>> createState() =>
+  State<RzMaterialDataTableBasic<T>> createState() =>
       _RzMaterialDataTableBasicState<T>();
 }
 
 class _RzMaterialDataTableBasicState<T>
-    extends State<RzMaterialDataTableBasicDemo<T>> {
+    extends State<RzMaterialDataTableBasic<T>> {
   late List<T> filtered;
   late List<T> displayed;
   String query = '';
@@ -201,7 +201,7 @@ class _RzMaterialDataTableBasicState<T>
   }
 
   @override
-  void didUpdateWidget(covariant RzMaterialDataTableBasicDemo<T> oldWidget) {
+  void didUpdateWidget(covariant RzMaterialDataTableBasic<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.items != widget.items) {
       filtered = List.from(widget.items);
