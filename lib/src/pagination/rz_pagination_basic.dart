@@ -141,6 +141,21 @@ class _RzPaginationBasicState extends State<RzPaginationBasic> {
   late int lastWindowStart;
   late int internalCurrentPage;
 
+  // FLOOR METHOD
+  int get midLeft {
+    int value = (widget.totalPage / 2).floor();
+    return value + 1;
+  }
+
+  int get midRight {
+    int left = midLeft;
+    return (widget.totalPage - left) + 1;
+  }
+
+  int get centerIndex {
+    return midLeft;
+  }
+
   int get effectiveMaxVisibleStarting {
     if (widget.maxVisibleStartingNumbers <= 0) {
       return 1;
@@ -193,13 +208,12 @@ class _RzPaginationBasicState extends State<RzPaginationBasic> {
 
   List<int> get startPages {
     List<int> pages = [];
-    for (
-    int i = windowStart;
-    i < windowStart + effectiveMaxVisibleStarting;
-    i++
-    ) {
-      if (i >= 0 && i < widget.totalPage) {
-        pages.add(i);
+    int end = windowStart + effectiveMaxVisibleStarting;
+    for (int i = windowStart; i < end; i++) {
+      if (i >= 0) {
+        if (i < widget.totalPage) {
+          pages.add(i);
+        }
       }
     }
     return pages;
@@ -210,13 +224,12 @@ class _RzPaginationBasicState extends State<RzPaginationBasic> {
       return [];
     }
     List<int> pages = [];
-    for (
-    int i = midWindowStart;
-    i < midWindowStart + effectiveMaxVisibleMid;
-    i++
-    ) {
-      if (i >= 0 && i < widget.totalPage) {
-        pages.add(i);
+    int end = midWindowStart + effectiveMaxVisibleMid;
+    for (int i = midWindowStart; i < end; i++) {
+      if (i >= 0) {
+        if (i < widget.totalPage) {
+          pages.add(i);
+        }
       }
     }
     return pages;
@@ -227,79 +240,82 @@ class _RzPaginationBasicState extends State<RzPaginationBasic> {
       return [];
     }
     List<int> pages = [];
-    for (
-    int i = lastWindowStart;
-    i < lastWindowStart + effectiveMaxVisibleLast;
-    i++
-    ) {
-      if (i >= 0 && i < widget.totalPage) {
-        pages.add(i);
+    int end = lastWindowStart + effectiveMaxVisibleLast;
+    for (int i = lastWindowStart; i < end; i++) {
+      if (i >= 0) {
+        if (i < widget.totalPage) {
+          pages.add(i);
+        }
       }
     }
     return pages;
   }
 
   int get maxWindowStart {
+    int max = 0;
     if (hasMid == true || hasLastNumbers == true) {
-      int max = (widget.totalPage ~/ 2) - effectiveMaxVisibleStarting;
+      int leftHalf = midLeft;
+      max = leftHalf - effectiveMaxVisibleStarting;
       if (max < 0) {
         max = 0;
       }
-      if (max > widget.totalPage) {
-        max = widget.totalPage;
-      }
-      return max;
     } else {
-      int max = widget.totalPage - effectiveMaxVisibleStarting;
+      max = widget.totalPage - effectiveMaxVisibleStarting;
       if (max < 0) {
         max = 0;
       }
-      if (max > widget.totalPage) {
-        max = widget.totalPage;
-      }
-      return max;
     }
+    if (max > widget.totalPage) {
+      max = widget.totalPage;
+    }
+    return max;
   }
 
   int get minMidStart {
-    int value = widget.totalPage ~/ 2;
-    return value;
+    int min = effectiveMaxVisibleStarting + 1;
+    if (min < 0) {
+      min = 0;
+    }
+    return min;
   }
 
   int get maxMidStart {
+    int max = 0;
     if (hasLastNumbers == true) {
-      int max =
+      max =
           widget.totalPage -
               effectiveMaxVisibleMid -
               effectiveMaxVisibleLast -
               1;
-      if (max < minMidStart) {
-        max = minMidStart;
-      }
-      if (max > widget.totalPage) {
-        max = widget.totalPage;
-      }
-      return max;
     } else {
-      int max = widget.totalPage - effectiveMaxVisibleMid;
-      if (max < minMidStart) {
-        max = minMidStart;
-      }
-      if (max > widget.totalPage) {
-        max = widget.totalPage;
-      }
-      return max;
+      max = widget.totalPage - effectiveMaxVisibleMid;
     }
+    if (max < minMidStart) {
+      max = minMidStart;
+    }
+    if (max < 0) {
+      max = 0;
+    }
+    if (max > widget.totalPage) {
+      max = widget.totalPage;
+    }
+    return max;
   }
 
   int get minLastStart {
+    int value = 0;
     if (hasMid == true) {
-      int value = minMidStart + effectiveMaxVisibleMid + 1;
-      return value;
+      int afterMid = minMidStart + effectiveMaxVisibleMid + 1;
+      int centerBased = centerIndex + 1;
+      value = afterMid;
+      if (centerBased > value) {
+        value = centerBased;
+      }
     } else {
-      int value = (widget.totalPage ~/ 2) + 1;
-      return value;
+      int centerBased = centerIndex + 1;
+      value = centerBased;
     }
+    return value;
   }
 
   int get maxLastStart {
@@ -310,18 +326,23 @@ class _RzPaginationBasicState extends State<RzPaginationBasic> {
     if (max > widget.totalPage) {
       max = widget.totalPage;
     }
+    if (max < minLastStart) {
+      max = minLastStart;
+    }
     return max;
   }
 
   int get middleMidStart {
-    int mid = widget.totalPage ~/ 2;
-    if (mid < minMidStart) {
-      mid = minMidStart;
+    double halfMid = effectiveMaxVisibleMid / 2;
+    int halfMidFloor = halfMid.floor();
+    int start = centerIndex - halfMidFloor;
+    if (start < minMidStart) {
+      start = minMidStart;
     }
-    if (mid > maxMidStart) {
-      mid = maxMidStart;
+    if (start > maxMidStart) {
+      start = maxMidStart;
     }
-    return mid;
+    return start;
   }
 
   int get middleLastStart {
